@@ -89,9 +89,8 @@ function binarize(data, width, height, returnInverted, greyscaleWeights) {
     }
     const horizontalRegionCount = Math.ceil(width / REGION_SIZE);
     const verticalRegionCount = Math.ceil(height / REGION_SIZE);
-    const blackPointsCount = horizontalRegionCount * verticalRegionCount;
-    let blackPointsBuffer;
-    const blackPoints = new Matrix(horizontalRegionCount, verticalRegionCount, blackPointsBuffer);
+
+    const blackPoints = new Matrix(horizontalRegionCount, verticalRegionCount);
     for (let verticalRegion = 0; verticalRegion < verticalRegionCount; verticalRegion++) {
         for (let hortizontalRegion = 0; hortizontalRegion < horizontalRegionCount; hortizontalRegion++) {
             let min = Infinity;
