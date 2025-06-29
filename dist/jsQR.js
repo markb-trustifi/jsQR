@@ -47,41 +47,43 @@ class Matrix {
         this.data[y * this.width + x] = value;
     }
 }
-function binarize(data, width, height, returnInverted, greyscaleWeights, canOverwriteImage) {
+function binarize(data, width, height, returnInverted, greyscaleWeights) {
     const pixelCount = width * height;
-    if (data.length !== pixelCount * 4) {
+    if (data.length !== pixelCount && data.length !== pixelCount * 4) {
         throw new Error("Malformed data passed to binarizer.");
     }
     // assign the greyscale and binary image within the rgba buffer as the rgba image will not be needed after conversion
     let bufferOffset = 0;
     // Convert image to greyscale
     let greyscaleBuffer;
-    if (canOverwriteImage) {
-        greyscaleBuffer = new Uint8ClampedArray(data.buffer, bufferOffset, pixelCount);
-        bufferOffset += pixelCount;
+    if (data.length === pixelCount) {
+        greyscaleBuffer = Uint8ClampedArray.from(data);
     }
+
     const greyscalePixels = new Matrix(width, height, greyscaleBuffer);
-    if (greyscaleWeights.useIntegerApproximation) {
-        for (let y = 0; y < height; y++) {
-            for (let x = 0; x < width; x++) {
-                const pixelPosition = (y * width + x) * 4;
-                const r = data[pixelPosition];
-                const g = data[pixelPosition + 1];
-                const b = data[pixelPosition + 2];
-                greyscalePixels.set(x, y, 
-                // tslint:disable-next-line no-bitwise
-                (greyscaleWeights.red * r + greyscaleWeights.green * g + greyscaleWeights.blue * b + 128) >> 8);
+
+    if (data.length === pixelCount * 4) {
+        if (greyscaleWeights.useIntegerApproximation) {
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const pixelPosition = (y * width + x) * 4;
+                    const r = data[pixelPosition];
+                    const g = data[pixelPosition + 1];
+                    const b = data[pixelPosition + 2];
+                    greyscalePixels.set(x, y,
+                        // tslint:disable-next-line no-bitwise
+                        (greyscaleWeights.red * r + greyscaleWeights.green * g + greyscaleWeights.blue * b + 128) >> 8);
+                }
             }
-        }
-    }
-    else {
-        for (let y = 0; y < height; y++) {
-            for (let x = 0; x < width; x++) {
-                const pixelPosition = (y * width + x) * 4;
-                const r = data[pixelPosition];
-                const g = data[pixelPosition + 1];
-                const b = data[pixelPosition + 2];
-                greyscalePixels.set(x, y, greyscaleWeights.red * r + greyscaleWeights.green * g + greyscaleWeights.blue * b);
+        } else {
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const pixelPosition = (y * width + x) * 4;
+                    const r = data[pixelPosition];
+                    const g = data[pixelPosition + 1];
+                    const b = data[pixelPosition + 2];
+                    greyscalePixels.set(x, y, greyscaleWeights.red * r + greyscaleWeights.green * g + greyscaleWeights.blue * b);
+                }
             }
         }
     }
@@ -89,10 +91,6 @@ function binarize(data, width, height, returnInverted, greyscaleWeights, canOver
     const verticalRegionCount = Math.ceil(height / REGION_SIZE);
     const blackPointsCount = horizontalRegionCount * verticalRegionCount;
     let blackPointsBuffer;
-    if (canOverwriteImage) {
-        blackPointsBuffer = new Uint8ClampedArray(data.buffer, bufferOffset, blackPointsCount);
-        bufferOffset += blackPointsCount;
-    }
     const blackPoints = new Matrix(horizontalRegionCount, verticalRegionCount, blackPointsBuffer);
     for (let verticalRegion = 0; verticalRegion < verticalRegionCount; verticalRegion++) {
         for (let hortizontalRegion = 0; hortizontalRegion < horizontalRegionCount; hortizontalRegion++) {
@@ -139,24 +137,10 @@ function binarize(data, width, height, returnInverted, greyscaleWeights, canOver
             blackPoints.set(hortizontalRegion, verticalRegion, average);
         }
     }
-    let binarized;
-    if (canOverwriteImage) {
-        const binarizedBuffer = new Uint8ClampedArray(data.buffer, bufferOffset, pixelCount);
-        bufferOffset += pixelCount;
-        binarized = new BitMatrix(binarizedBuffer, width);
-    }
-    else {
-        binarized = BitMatrix.createEmpty(width, height);
-    }
+    let binarized = BitMatrix.createEmpty(width, height);
     let inverted = null;
     if (returnInverted) {
-        if (canOverwriteImage) {
-            const invertedBuffer = new Uint8ClampedArray(data.buffer, bufferOffset, pixelCount);
-            inverted = new BitMatrix(invertedBuffer, width);
-        }
-        else {
-            inverted = BitMatrix.createEmpty(width, height);
-        }
+        inverted = BitMatrix.createEmpty(width, height);
     }
     for (let verticalRegion = 0; verticalRegion < verticalRegionCount; verticalRegion++) {
         for (let hortizontalRegion = 0; hortizontalRegion < horizontalRegionCount; hortizontalRegion++) {
@@ -2883,8 +2867,7 @@ const defaultOptions = {
         green: 0.7152,
         blue: 0.0722,
         useIntegerApproximation: false,
-    },
-    canOverwriteImage: true,
+    }
 };
 function mergeObject(target, src) {
     Object.keys(src).forEach(opt => {
@@ -2897,7 +2880,7 @@ function jsQR(data, width, height, providedOptions = {}) {
     mergeObject(options, providedOptions);
     const tryInvertedFirst = options.inversionAttempts === "onlyInvert" || options.inversionAttempts === "invertFirst";
     const shouldInvert = options.inversionAttempts === "attemptBoth" || tryInvertedFirst;
-    const { binarized, inverted } = binarize(data, width, height, shouldInvert, options.greyScaleWeights, options.canOverwriteImage);
+    const { binarized, inverted } = binarize(data, width, height, shouldInvert, options.greyScaleWeights);
     let result = scan(tryInvertedFirst ? inverted : binarized);
     if (!result && (options.inversionAttempts === "attemptBoth" || options.inversionAttempts === "invertFirst")) {
         result = scan(tryInvertedFirst ? binarized : inverted);
